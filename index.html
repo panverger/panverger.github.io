@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web BLE ESP32 Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        button { font-size: 20px; padding: 15px 25px; margin: 10px; border-radius: 8px; cursor: pointer; }
+        #connect-btn { background-color: #007BFF; color: white; }
+        #on-btn { background-color: #28A745; color: white; }
+        #off-btn { background-color: #DC3545; color: white; }
+        #status { margin-top: 20px; font-style: italic; color: #666; }
+    </style>
+</head>
+<body>
+
+    <h1>ESP32-C6 Web BLE Control</h1>
+
+    <button id="connect-btn">Connect to ESP32</button>
+    <hr>
+    <button id="on-btn">LED ON</button>
+    <button id="off-btn">LED OFF</button>
+
+    <p id="status">Status: Disconnected</p>
+
+    <script>
+        // UUIDs from your ESP32 sketch
+        const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+        const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+
+        // Get references to HTML elements
+        const connectButton = document.getElementById('connect-btn');
+        const onButton = document.getElementById('on-btn');
+        const offButton = document.getElementById('off-btn');
+        const statusDisplay = document.getElementById('status');
+
+        let bleCharacteristic;
+        let bleDevice;
+
+        // --- Event Listeners ---
+        connectButton.addEventListener('click', connectToDevice);
+        onButton.addEventListener('click', () => sendCommand('1'));
+        offButton.addEventListener('click', () => sendCommand('0'));
+
+        async function connectToDevice() {
+            try {
+                statusDisplay.textContent = 'Scanning for devices...';
+                
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+                
+                statusDisplay.textContent = 'Found device. Connecting...';
+                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+                const server = await bleDevice.gatt.connect();
+
+                statusDisplay.textContent = 'Getting service...';
+                const service = await server.getPrimaryService(SERVICE_UUID);
+
+                statusDisplay.textContent = 'Getting characteristic...';
+                bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                statusDisplay.textContent = 'Connected!';
+                console.log('Connected and characteristic found!');
+
+            } catch(error) {
+                console.error('Connection failed:', error);
+                statusDisplay.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function sendCommand(command) {
+            if (!bleCharacteristic) {
+                alert('You must connect to a device first!');
+                return;
+            }
+            try {
+                const encoder = new TextEncoder('utf-8');
+                const data = encoder.encode(command);
+                await bleCharacteristic.writeValue(data);
+                console.log(`Command sent: ${command}`);
+            } catch(error) {
+                console.error('Send command failed:', error);
+                statusDisplay.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        function onDisconnected(event) {
+            statusDisplay.textContent = 'Device disconnected.';
+            bleCharacteristic = null;
+            console.log('Device disconnected.');
+        }
+
+    </script>
+</body>
+</html>
